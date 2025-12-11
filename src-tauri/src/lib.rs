@@ -151,6 +151,38 @@ fn save_settings(app_handle: tauri::AppHandle, settings: AppSettings) -> Result<
     Ok(())
 }
 
+fn get_storage_path_internal(app_handle: &tauri::AppHandle) -> Result<PathBuf, String> {
+    // Reuse logic: read settings, if fail use default
+    let settings = get_settings(app_handle.clone())?;
+    Ok(PathBuf::from(settings.storage_path))
+}
+
+#[tauri::command]
+fn read_accounts_file(app_handle: tauri::AppHandle) -> Result<String, String> {
+    let storage_path = get_storage_path_internal(&app_handle)?;
+    let file_path = storage_path.join("accounts.csv");
+
+    if !file_path.exists() {
+        return Ok(String::new()); // Return empty string if file doesn't exist
+    }
+
+    fs::read_to_string(file_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn write_accounts_file(app_handle: tauri::AppHandle, content: String) -> Result<(), String> {
+    let storage_path = get_storage_path_internal(&app_handle)?;
+
+    // Ensure directory exists
+    if !storage_path.exists() {
+        fs::create_dir_all(&storage_path)
+            .map_err(|e| format!("Failed to create storage dir: {}", e))?;
+    }
+
+    let file_path = storage_path.join("accounts.csv");
+    fs::write(file_path, content).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -160,7 +192,9 @@ pub fn run() {
             encrypt_message,
             decrypt_message,
             get_settings,
-            save_settings
+            save_settings,
+            read_accounts_file,
+            write_accounts_file
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
