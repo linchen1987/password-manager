@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "link1987-password",
+  "productName": "Link Password",
   "version": "0.1.0",
   "identifier": "com.linchen.link1987-password",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "link1987-password",
+        "title": "Link Password",
         "width": 800,
         "height": 600
       }
