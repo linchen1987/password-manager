@@ -138,4 +138,14 @@ mod tests {
 
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_specific_vector() {
+        let encrypted = "82818c21062c68b2c97d56de73d9661c:94dbb90b35f6a2f2866f3a41e72080e2:d67c1498bd07be24b68eaf15589d9525";
+        let password = "123456";
+        let expected = "abcdefg";
+
+        let decrypted = decrypt_message(encrypted.to_string(), password.to_string()).unwrap();
+        assert_eq!(decrypted, expected);
+    }
 }
