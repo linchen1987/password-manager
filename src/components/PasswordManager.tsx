@@ -35,6 +35,9 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
     // Delete Account State
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+    // Search State
+    const [searchTerm, setSearchTerm] = useState("");
+
     useEffect(() => {
         loadAccounts();
     }, [settingsVersion]);
@@ -159,6 +162,11 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         setSelectedAccount(null);
     };
 
+    // Filter Logic
+    const filteredAccounts = accounts.filter(acc =>
+        acc.name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     // --- Render Helpers ---
 
     const renderList = () => (
@@ -175,18 +183,39 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                 </div>
             </div>
 
+            <div className="pm-search">
+                <div className="search-input-wrapper">
+                    <svg className="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input
+                        type="text"
+                        placeholder="Search passwords"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
+                        <button className="icon-btn clear-btn" onClick={() => setSearchTerm("")} style={{ minWidth: 'auto', padding: '2px' }}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                        </button>
+                    )}
+                </div>
+            </div>
+
             {error && <p className="error">{error}</p>}
 
             {loading ? (
                 <p className="loading-text">Loading...</p>
-            ) : accounts.length === 0 ? (
+            ) : filteredAccounts.length === 0 ? (
                 <div className="empty-state">
-                    <p>No passwords saved yet.</p>
-                    <button onClick={() => setShowCreate(true)}>Add your first password</button>
+                    {searchTerm ? <p>No results found.</p> : (
+                        <>
+                            <p>No passwords saved yet.</p>
+                            <button onClick={() => setShowCreate(true)}>Add your first password</button>
+                        </>
+                    )}
                 </div>
             ) : (
                 <div className="account-list">
-                    {accounts.map((acc, idx) => (
+                    {filteredAccounts.map((acc, idx) => (
                         <div key={idx} className="account-item" onClick={() => handleAccountClick(acc)}>
                             <div className="account-icon-placeholder">
                                 {/* Simple initial based icon */}
