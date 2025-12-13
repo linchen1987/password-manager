@@ -49,6 +49,26 @@ button {
   transition: all 0.2s;
 }
 
+button:hover {
+  border-color: #646cff;
+}
+
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+.primary-btn {
+  background-color: #1a73e8;
+  color: white;
+  border: 1px solid #1a73e8;
+}
+
+.primary-btn:hover {
+  background-color: #1557b0;
+  border-color: #1557b0;
+}
+
 button.primary-btn {
   background-color: #1a73e8;
   /* Chrome Blue */
@@ -57,6 +77,12 @@ button.primary-btn {
 
 button.primary-btn:hover {
   background-color: #1557b0;
+}
+
+.secondary {
+  background-color: transparent;
+  color: #5f6368;
+  border: 1px solid #dadce0;
 }
 
 button.secondary {
@@ -175,6 +201,10 @@ input:focus {
   border-bottom: 1px solid #f1f3f4;
   cursor: pointer;
   transition: background-color 0.1s;
+}
+
+.account-item>* {
+  pointer-events: none;
 }
 
 .account-item:last-child {

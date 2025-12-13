@@ -1,5 +1,22 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import {
+    DndContext,
+    closestCenter,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core';
+import {
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    useSortable,
+    verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Account {
     name: string;
@@ -9,6 +26,32 @@ interface Account {
 interface PasswordManagerProps {
     settingsVersion?: number;
     onOpenSettings: () => void;
+}
+
+// Sortable Item Component
+function SortableItem({ id, children, className, onClick, style }: { id: string, children: React.ReactNode, className?: string, onClick?: () => void, style?: React.CSSProperties }) {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging,
+    } = useSortable({ id });
+
+    const combinedStyle = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 1 : 'auto',
+        opacity: isDragging ? 0.5 : 1,
+        ...style,
+    };
+
+    return (
+        <div ref={setNodeRef} style={combinedStyle} {...attributes} {...listeners} className={className} onClick={onClick}>
+            {children}
+        </div>
+    );
 }
 
 export default function PasswordManager({ settingsVersion = 0, onOpenSettings }: PasswordManagerProps) {
@@ -37,6 +80,9 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
 
     // Search State
     const [searchTerm, setSearchTerm] = useState("");
+
+    // Drag and Drop (dnd-kit) logic setup later
+
 
     useEffect(() => {
         loadAccounts();
@@ -81,39 +127,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         }
     };
 
-    const handleCreateAccount = async () => {
-        if (!newName) {
-            alert("Please enter an account name");
-            return;
-        }
 
-        let encrypted = "";
-
-        if (newPassword) {
-            if (!masterPassword) {
-                alert("Master password is required to encrypt the password");
-                return;
-            }
-            try {
-                encrypted = await invoke<string>("encrypt_message", {
-                    message: newPassword,
-                    password: masterPassword,
-                });
-            } catch (err) {
-                alert("Failed to encrypt: " + String(err));
-                return;
-            }
-        }
-
-        const newAccount = { name: newName, encryptedPassword: encrypted };
-        const updatedAccounts = [...accounts, newAccount];
-        saveAccounts(updatedAccounts);
-
-        setShowCreate(false);
-        setNewName("");
-        setNewPassword("");
-        setMasterPassword("");
-    };
 
     const handleDeleteAccount = async () => {
         if (!selectedAccount) return;
@@ -162,10 +176,78 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         setSelectedAccount(null);
     };
 
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 8,
+            },
+        }),
+        useSensor(KeyboardSensor, {
+            coordinateGetter: sortableKeyboardCoordinates,
+        })
+    );
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event;
+
+        if (active.id !== over?.id) {
+            setAccounts((items) => {
+                const oldIndex = items.findIndex(item => item.name === active.id);
+                const newIndex = items.findIndex(item => item.name === over?.id);
+
+                const newAccounts = arrayMove(items, oldIndex, newIndex);
+                saveAccounts(newAccounts);
+                return newAccounts;
+            });
+        }
+    };
+
+    const handleCreateAccount = async () => {
+        if (!newName) {
+            alert("Please enter an account name");
+            return;
+        }
+
+        if (accounts.some(acc => acc.name === newName)) {
+            alert("Account name already exists. Please choose a unique name.");
+            return;
+        }
+
+        let encrypted = "";
+
+        if (newPassword) {
+            if (!masterPassword) {
+                alert("Master password is required to encrypt the password");
+                return;
+            }
+            try {
+                encrypted = await invoke<string>("encrypt_message", {
+                    message: newPassword,
+                    password: masterPassword,
+                });
+            } catch (err) {
+                alert("Failed to encrypt: " + String(err));
+                return;
+            }
+        }
+
+        const newAccount = { name: newName, encryptedPassword: encrypted };
+        const updatedAccounts = [...accounts, newAccount];
+        saveAccounts(updatedAccounts);
+
+        setShowCreate(false);
+        setNewName("");
+        setNewPassword("");
+        setMasterPassword("");
+    };
+
     // Filter Logic
     const filteredAccounts = accounts.filter(acc =>
         acc.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
+
+    // Disable DnD when filtering
+    const isDragEnabled = !searchTerm;
 
     // --- Render Helpers ---
 
@@ -215,18 +297,54 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                 </div>
             ) : (
                 <div className="account-list">
-                    {filteredAccounts.map((acc, idx) => (
-                        <div key={idx} className="account-item" onClick={() => handleAccountClick(acc)}>
-                            <div className="account-icon-placeholder">
-                                {/* Simple initial based icon */}
-                                {acc.name.charAt(0).toUpperCase()}
+                    {isDragEnabled ? (
+                        <DndContext
+                            sensors={sensors}
+                            collisionDetection={closestCenter}
+                            onDragEnd={handleDragEnd}
+                        >
+                            <SortableContext
+                                items={filteredAccounts.map(a => a.name)}
+                                strategy={verticalListSortingStrategy}
+                            >
+                                {filteredAccounts.map((acc) => (
+                                    <SortableItem
+                                        key={acc.name}
+                                        id={acc.name}
+                                        className="account-item"
+                                        onClick={() => handleAccountClick(acc)}
+                                        style={{ cursor: 'grab' }}
+                                    >
+                                        <div className="account-icon-placeholder">
+                                            {acc.name.charAt(0).toUpperCase()}
+                                        </div>
+                                        <span className="account-name">{acc.name}</span>
+                                        <div className="account-arrow">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                                        </div>
+                                    </SortableItem>
+                                ))}
+                            </SortableContext>
+                        </DndContext>
+                    ) : (
+                        // Non-sortable list (when searching)
+                        filteredAccounts.map((acc) => (
+                            <div
+                                key={acc.name}
+                                className="account-item"
+                                onClick={() => handleAccountClick(acc)}
+                                style={{ cursor: 'pointer' }}
+                            >
+                                <div className="account-icon-placeholder">
+                                    {acc.name.charAt(0).toUpperCase()}
+                                </div>
+                                <span className="account-name">{acc.name}</span>
+                                <div className="account-arrow">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                                </div>
                             </div>
-                            <span className="account-name">{acc.name}</span>
-                            <div className="account-arrow">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
-                            </div>
-                        </div>
-                    ))}
+                        ))
+                    )}
                 </div>
             )}
         </div>
@@ -334,7 +452,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                         </div>
                         <div className="modal-actions">
                             <button className="secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-                            <button onClick={handleCreateAccount}>Save</button>
+                            <button className="primary-btn" onClick={handleCreateAccount}>Save</button>
                         </div>
                     </div>
                 </div>
