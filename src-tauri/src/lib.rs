@@ -48,15 +48,18 @@ fn encrypt_message(message: String, password: String) -> Result<String, String> 
     let iv_hex = hex::encode(iv);
     let encrypted_hex = hex::encode(buffer);
 
-    Ok(format!("{}:{}:{}", salt_hex, iv_hex, encrypted_hex))
+    Ok(format!("{}_{}_{}", salt_hex, iv_hex, encrypted_hex))
 }
 
 #[tauri::command]
 fn decrypt_message(encrypted_data: String, password: String) -> Result<String, String> {
-    // 1. Parse Salt:IV:Ciphertext
-    let parts: Vec<&str> = encrypted_data.split(':').collect();
+    // 1. Parse Salt:IV:Ciphertext or Salt_IV_Ciphertext
+    let parts: Vec<&str> = encrypted_data.split(|c| c == ':' || c == '_').collect();
     if parts.len() != 3 {
-        return Err("Invalid encrypted string format. Expected salt:iv:ciphertext".to_string());
+        return Err(
+            "Invalid encrypted string format. Expected salt:iv:ciphertext or salt_iv_ciphertext"
+                .to_string(),
+        );
     }
 
     let salt = hex::decode(parts[0]).map_err(|e| format!("Invalid salt hex: {}", e))?;
@@ -212,8 +215,8 @@ mod tests {
         let encrypted = encrypt_message(message.to_string(), password.to_string()).unwrap();
         println!("Encrypted: {}", encrypted);
 
-        // Verify format
-        let parts: Vec<&str> = encrypted.split(':').collect();
+        // Verify format (expecting 3 parts with either : or _)
+        let parts: Vec<&str> = encrypted.split(|c| c == ':' || c == '_').collect();
         assert_eq!(parts.len(), 3);
 
         // Decrypt
@@ -236,6 +239,17 @@ mod tests {
     #[test]
     fn test_specific_vector() {
         let encrypted = "82818c21062c68b2c97d56de73d9661c:94dbb90b35f6a2f2866f3a41e72080e2:d67c1498bd07be24b68eaf15589d9525";
+        let password = "123456";
+        let expected = "abcdefg";
+
+        let decrypted = decrypt_message(encrypted.to_string(), password.to_string()).unwrap();
+        assert_eq!(decrypted, expected);
+    }
+
+    #[test]
+    fn test_specific_vector_underscore() {
+        // Test vector with '_' separator
+        let encrypted = "82818c21062c68b2c97d56de73d9661c_94dbb90b35f6a2f2866f3a41e72080e2_d67c1498bd07be24b68eaf15589d9525";
         let password = "123456";
         let expected = "abcdefg";
 

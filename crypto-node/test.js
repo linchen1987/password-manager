@@ -9,9 +9,9 @@ test('test_encryption_decryption', () => {
     const encrypted = encryptMessage(message, password);
     // console.log("Encrypted:", encrypted);
 
-    // Verify format
-    const parts = encrypted.split(':');
-    assert.strictEqual(parts.length, 3, "Output format should be salt:iv:ciphertext");
+    // Verify format (expecting 3 parts with either : or _)
+    const parts = encrypted.split(/[:_]/);
+    assert.strictEqual(parts.length, 3, "Output format should be salt_iv_ciphertext or salt:iv:ciphertext");
 
     // Decrypt
     const decrypted = decryptMessage(encrypted, password);
@@ -37,4 +37,13 @@ test('test_specific_vector', () => {
 
     const decrypted = decryptMessage(encrypted, password);
     assert.strictEqual(decrypted, expected, "Should decrypt known vector correctly");
+});
+
+test('test_specific_vector_underscore', () => {
+    const encrypted = "82818c21062c68b2c97d56de73d9661c_94dbb90b35f6a2f2866f3a41e72080e2_d67c1498bd07be24b68eaf15589d9525";
+    const password = "123456";
+    const expected = "abcdefg";
+
+    const decrypted = decryptMessage(encrypted, password);
+    assert.strictEqual(decrypted, expected, "Should decrypt known vector with underscore correctly");
 });

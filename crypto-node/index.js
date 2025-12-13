@@ -24,20 +24,20 @@ export function encryptMessage(message, password) {
     encrypted += cipher.final('hex');
 
     // 5. Output format
-    return `${salt.toString('hex')}:${iv.toString('hex')}:${encrypted}`;
+    return `${salt.toString('hex')}_${iv.toString('hex')}_${encrypted}`;
 }
 
 /**
  * Decrypts a message using AES-256-CBC and Scrypt for key derivation.
  * 
- * @param {string} encryptedData "salt:iv:ciphertext"
+ * @param {string} encryptedData "salt:iv:ciphertext" or "salt_iv_ciphertext"
  * @param {string} password 
  * @returns {string} Decrypted message
  */
 export function decryptMessage(encryptedData, password) {
-    const parts = encryptedData.split(':');
+    const parts = encryptedData.split(/[:_]/);
     if (parts.length !== 3) {
-        throw new Error("Invalid encrypted string format. Expected salt:iv:ciphertext");
+        throw new Error("Invalid encrypted string format. Expected salt:iv:ciphertext or salt_iv_ciphertext");
     }
 
     const salt = Buffer.from(parts[0], 'hex');
