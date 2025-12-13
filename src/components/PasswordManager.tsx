@@ -83,10 +83,24 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
 
     // Drag and Drop (dnd-kit) logic setup later
 
+    // Notification State
+    const [notification, setNotification] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+    // Edit State
+    const [editingAccount, setEditingAccount] = useState<Account | null>(null);
 
     useEffect(() => {
         loadAccounts();
     }, [settingsVersion]);
+
+    useEffect(() => {
+        if (notification) {
+            const timer = setTimeout(() => {
+                setNotification(null);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [notification]);
 
     const loadAccounts = async () => {
         setLoading(true);
@@ -122,25 +136,24 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         try {
             await invoke("write_accounts_file", { content: csvContent });
             setAccounts(updatedAccounts);
+            return true;
         } catch (err) {
-            alert("Failed to save accounts: " + String(err));
+            setNotification({ msg: "Failed to save accounts: " + String(err), type: "error" });
+            return false;
         }
     };
-
-
 
     const handleDeleteAccount = async () => {
         if (!selectedAccount) return;
 
-        // Filter out the account to delete (by name matching for now - assuming names are unique or it's acceptable to delete first match)
-        // Ideally we should have an ID, but name is what we have.
         const updatedAccounts = accounts.filter(acc => acc.name !== selectedAccount.name);
 
-        await saveAccounts(updatedAccounts);
-
-        setShowDeleteConfirm(false);
-        setSelectedAccount(null);
-        setView("list");
+        if (await saveAccounts(updatedAccounts)) {
+            setNotification({ msg: "Account deleted successfully", type: "success" });
+            setShowDeleteConfirm(false);
+            setSelectedAccount(null);
+            setView("list");
+        }
     };
 
     const handleUnlock = async () => {
@@ -176,6 +189,23 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         setSelectedAccount(null);
     };
 
+    const handleEditClick = () => {
+        if (!selectedAccount) return;
+        setEditingAccount(selectedAccount);
+        setNewName(selectedAccount.name);
+        setNewPassword(""); // Reset password field, if they want to change it they can
+        setMasterPassword("");
+        setShowCreate(true);
+    };
+
+    const handleAddClick = () => {
+        setEditingAccount(null);
+        setNewName("");
+        setNewPassword("");
+        setMasterPassword("");
+        setShowCreate(true);
+    };
+
     const sensors = useSensors(
         useSensor(PointerSensor, {
             activationConstraint: {
@@ -202,22 +232,28 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         }
     };
 
-    const handleCreateAccount = async () => {
+    const handleSaveAccount = async () => {
         if (!newName) {
-            alert("Please enter an account name");
+            setNotification({ msg: "Please enter an account name", type: "error" });
             return;
         }
 
-        if (accounts.some(acc => acc.name === newName)) {
-            alert("Account name already exists. Please choose a unique name.");
+        // Check for duplicate names (exclude self if editing)
+        const isDuplicate = accounts.some(acc =>
+            acc.name === newName && (!editingAccount || acc.name !== editingAccount.name)
+        );
+
+        if (isDuplicate) {
+            setNotification({ msg: "Account name already exists", type: "error" });
             return;
         }
 
-        let encrypted = "";
+        let encrypted = editingAccount ? editingAccount.encryptedPassword : "";
 
+        // If password is provided, encrypt it
         if (newPassword) {
             if (!masterPassword) {
-                alert("Master password is required to encrypt the password");
+                setNotification({ msg: "Master password is required to encrypt the new password", type: "error" });
                 return;
             }
             try {
@@ -226,19 +262,36 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                     password: masterPassword,
                 });
             } catch (err) {
-                alert("Failed to encrypt: " + String(err));
+                setNotification({ msg: "Failed to encrypt: " + String(err), type: "error" });
                 return;
             }
+        } else if (!editingAccount) {
+            // Creating new account but no password provided? valid? probably okay to allow empty password but encrypted string might just be empty? 
+            // Current logic allows it.
+            encrypted = "";
         }
 
         const newAccount = { name: newName, encryptedPassword: encrypted };
-        const updatedAccounts = [...accounts, newAccount];
-        saveAccounts(updatedAccounts);
 
-        setShowCreate(false);
-        setNewName("");
-        setNewPassword("");
-        setMasterPassword("");
+        let updatedAccounts;
+        if (editingAccount) {
+            updatedAccounts = accounts.map(acc => acc.name === editingAccount.name ? newAccount : acc);
+            // Also update selectedAccount if we are actively viewing it
+            if (selectedAccount && selectedAccount.name === editingAccount.name) {
+                setSelectedAccount(newAccount);
+            }
+        } else {
+            updatedAccounts = [...accounts, newAccount];
+        }
+
+        if (await saveAccounts(updatedAccounts)) {
+            setNotification({ msg: editingAccount ? "Account updated successfully" : "Account created successfully", type: "success" });
+            setShowCreate(false);
+            setNewName("");
+            setNewPassword("");
+            setMasterPassword("");
+            setEditingAccount(null);
+        }
     };
 
     // Filter Logic
@@ -251,6 +304,15 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
 
     // --- Render Helpers ---
 
+    const NotificationBanner = () => {
+        if (!notification) return null;
+        return (
+            <div className={`notification-banner ${notification.type}`}>
+                {notification.msg}
+            </div>
+        );
+    };
+
     const renderList = () => (
         <div className="pm-list-container">
             <div className="pm-header">
@@ -259,7 +321,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                     <button className="icon-btn" onClick={onOpenSettings} title="Settings">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                     </button>
-                    <button className="icon-btn primary-icon-btn" onClick={() => setShowCreate(true)} title="Add Password">
+                    <button className="icon-btn primary-icon-btn" onClick={handleAddClick} title="Add Password">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
                 </div>
@@ -291,7 +353,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                     {searchTerm ? <p>No results found.</p> : (
                         <>
                             <p>No passwords saved yet.</p>
-                            <button onClick={() => setShowCreate(true)}>Add your first password</button>
+                            <button onClick={handleAddClick}>Add your first password</button>
                         </>
                     )}
                 </div>
@@ -414,7 +476,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                 </div>
 
                 <div className="detail-actions">
-                    <button className="action-btn edit-btn">Edit</button>
+                    <button className="action-btn edit-btn" onClick={handleEditClick}>Edit</button>
                     <button className="action-btn delete-btn" onClick={() => setShowDeleteConfirm(true)}>Delete</button>
                 </div>
             </div>
@@ -423,36 +485,60 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
 
     return (
         <div className="pm-wrapper">
+            <NotificationBanner />
             {view === "list" ? renderList() : renderDetail()}
 
-            {/* Create Account Modal - Global */}
+            {/* Create/Edit Account Modal - Global */}
             {showCreate && (
                 <div className="modal-overlay">
                     <div className="modal-content">
-                        <h3>Add New Password</h3>
+                        <h3>{editingAccount ? "Edit Password" : "Add New Account"}</h3>
                         <div className="form-group">
                             <input
-                                placeholder="Site Name"
+                                placeholder="Account"
                                 value={newName}
                                 onChange={(e) => setNewName(e.target.value)}
+                                autoComplete="off" // "off" or "new-password" often helps
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck="false"
+                                name="account_name_field_no_autofill" // Random name to avoid history
                             />
                             <input
                                 type="password"
-                                placeholder="Password"
+                                placeholder={editingAccount ? "New Password (leave empty to keep current)" : "Password (optional)"}
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
+                                autoComplete="new-password"
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                spellCheck="false"
+                                name="new_password_field_no_autofill"
                             />
                             <div className="divider"></div>
-                            <input
-                                type="password"
-                                placeholder="Master Encryption Password"
-                                value={masterPassword}
-                                onChange={(e) => setMasterPassword(e.target.value)}
-                            />
+                            {(newPassword || !editingAccount) && (
+                                <input
+                                    type="password"
+                                    placeholder="Unlock Password (optional)"
+                                    value={masterPassword}
+                                    onChange={(e) => setMasterPassword(e.target.value)}
+                                    autoComplete="off"
+                                    autoCorrect="off"
+                                    autoCapitalize="off"
+                                    spellCheck="false"
+                                    name="master_password_field_no_autofill"
+                                />
+                            )}
                         </div>
                         <div className="modal-actions">
                             <button className="secondary" onClick={() => setShowCreate(false)}>Cancel</button>
-                            <button className="primary-btn" onClick={handleCreateAccount}>Save</button>
+                            <button
+                                className="primary-btn"
+                                onClick={handleSaveAccount}
+                                disabled={!newName.trim() || (!!newPassword && !masterPassword)}
+                            >
+                                Save
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -418,3 +418,51 @@ input:focus {
 .settings-icon:hover {
   background-color: rgba(0, 0, 0, 0.05);
 }
+
+/* Notification Banner */
+.notification-banner {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  z-index: 2000;
+  animation: slideDown 0.3s ease-out;
+}
+
+.notification-banner.success {
+  background-color: #0f9d58;
+  /* Google Green */
+}
+
+.notification-banner.error {
+  background-color: #d93025;
+  /* Google Red */
+}
+
+@keyframes slideDown {
+  from {
+    transform: translate(-50%, -100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
+}
+
+button:disabled,
+button.primary-btn:disabled,
+button.icon-btn:disabled {
+  background-color: #dadce0;
+  color: #9aa0a6;
+  border-color: transparent;
+  cursor: not-allowed;
+  pointer-events: none;
+  box-shadow: none;
+}
