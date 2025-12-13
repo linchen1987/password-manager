@@ -74,6 +74,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
     const [decryptedPassword, setDecryptedPassword] = useState("");
     const [unlockError, setUnlockError] = useState("");
     const [showPassword, setShowPassword] = useState(false); // Toggle logic
+    const [showUnlock, setShowUnlock] = useState(false); // Modal visibility
 
     // Delete Account State
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -169,8 +170,35 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
             });
             setDecryptedPassword(decrypted);
             setShowPassword(true); // Reveal
+            setShowUnlock(false); // Close modal
         } catch (err) {
             setUnlockError("Failed to decrypt. Wrong password?");
+        }
+    };
+
+    const handleTogglePassword = () => {
+        if (showPassword) {
+            setShowPassword(false);
+        } else {
+            if (decryptedPassword) {
+                setShowPassword(true);
+            } else {
+                // Open modal to unlock
+                setUnlockMasterPassword("");
+                setUnlockError("");
+                setShowUnlock(true);
+            }
+        }
+    };
+
+    const handleCopyPassword = async () => {
+        if (decryptedPassword) {
+            try {
+                await navigator.clipboard.writeText(decryptedPassword);
+                setNotification({ msg: "Password copied to clipboard", type: "success" });
+            } catch (err) {
+                setNotification({ msg: "Failed to copy password", type: "error" });
+            }
         }
     };
 
@@ -181,6 +209,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         setDecryptedPassword("");
         setUnlockMasterPassword("");
         setShowPassword(false);
+        setShowUnlock(false);
         setUnlockError("");
     };
 
@@ -440,13 +469,18 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                         {showPassword ? decryptedPassword : "••••••••••••"}
                                     </div>
 
-                                    {!showPassword ? (
-                                        <button className="icon-btn reveal-btn" onClick={() => setShowPassword(true)} title="Show Password">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
-                                        </button>
+                                    {showPassword ? (
+                                        <>
+                                            <button className="icon-btn" onClick={handleCopyPassword} title="Copy Password">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                                            </button>
+                                            <button className="icon-btn reveal-btn" onClick={handleTogglePassword} title="Hide Password">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
+                                            </button>
+                                        </>
                                     ) : (
-                                        <button className="icon-btn reveal-btn" onClick={() => setShowPassword(false)} title="Hide Password">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
+                                        <button className="icon-btn reveal-btn" onClick={handleTogglePassword} title="Show Password">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
                                         </button>
                                     )}
                                 </>
@@ -455,24 +489,6 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                             )}
                         </div>
                     </div>
-
-                    {/* Master Password Prompt for Decryption */}
-                    {showPassword && !decryptedPassword && (
-                        <div className="unlock-prompt">
-                            <input
-                                type="password"
-                                placeholder="Enter Master Password to confirm"
-                                value={unlockMasterPassword}
-                                onChange={(e) => setUnlockMasterPassword(e.target.value)}
-                                autoFocus
-                            />
-                            <div className="unlock-actions">
-                                <button className="small-btn" onClick={handleUnlock}>Confirm</button>
-                                <button className="small-btn secondary" onClick={() => setShowPassword(false)}>Cancel</button>
-                            </div>
-                            {unlockError && <p className="error small-error">{unlockError}</p>}
-                        </div>
-                    )}
                 </div>
 
                 <div className="detail-actions">
@@ -539,6 +555,34 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                             >
                                 Save
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Unlock Modal */}
+            {showUnlock && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <h3>Unlock Password</h3>
+                        <div className="form-group">
+                            <input
+                                type="password"
+                                placeholder="Enter Unlock Password"
+                                value={unlockMasterPassword}
+                                onChange={(e) => setUnlockMasterPassword(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                        handleUnlock();
+                                    }
+                                }}
+                                autoFocus
+                            />
+                            {unlockError && <p className="error small-error">{unlockError}</p>}
+                        </div>
+                        <div className="modal-actions">
+                            <button className="secondary" onClick={() => setShowUnlock(false)}>Cancel</button>
+                            <button className="primary-btn" onClick={handleUnlock}>Unlock</button>
                         </div>
                     </div>
                 </div>
