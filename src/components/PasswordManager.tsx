@@ -32,6 +32,9 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
     const [unlockError, setUnlockError] = useState("");
     const [showPassword, setShowPassword] = useState(false); // Toggle logic
 
+    // Delete Account State
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
     useEffect(() => {
         loadAccounts();
     }, [settingsVersion]);
@@ -61,6 +64,20 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         }
     };
 
+    const saveAccounts = async (updatedAccounts: Account[]) => {
+        // Convert to CSV
+        const csvContent = updatedAccounts
+            .map((acc) => `${acc.name},${acc.encryptedPassword}`)
+            .join("\n");
+
+        try {
+            await invoke("write_accounts_file", { content: csvContent });
+            setAccounts(updatedAccounts);
+        } catch (err) {
+            alert("Failed to save accounts: " + String(err));
+        }
+    };
+
     const handleCreateAccount = async () => {
         if (!newName) {
             alert("Please enter an account name");
@@ -87,23 +104,26 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
 
         const newAccount = { name: newName, encryptedPassword: encrypted };
         const updatedAccounts = [...accounts, newAccount];
+        saveAccounts(updatedAccounts);
 
-        // Convert to CSV
-        const csvContent = updatedAccounts
-            .map((acc) => `${acc.name},${acc.encryptedPassword}`)
-            .join("\n");
+        setShowCreate(false);
+        setNewName("");
+        setNewPassword("");
+        setMasterPassword("");
+    };
 
-        try {
-            await invoke("write_accounts_file", { content: csvContent });
+    const handleDeleteAccount = async () => {
+        if (!selectedAccount) return;
 
-            setAccounts(updatedAccounts);
-            setShowCreate(false);
-            setNewName("");
-            setNewPassword("");
-            setMasterPassword("");
-        } catch (err) {
-            alert("Failed to save account: " + String(err));
-        }
+        // Filter out the account to delete (by name matching for now - assuming names are unique or it's acceptable to delete first match)
+        // Ideally we should have an ID, but name is what we have.
+        const updatedAccounts = accounts.filter(acc => acc.name !== selectedAccount.name);
+
+        await saveAccounts(updatedAccounts);
+
+        setShowDeleteConfirm(false);
+        setSelectedAccount(null);
+        setView("list");
     };
 
     const handleUnlock = async () => {
@@ -248,7 +268,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
 
                 <div className="detail-actions">
                     <button className="action-btn edit-btn">Edit</button>
-                    <button className="action-btn delete-btn">Delete</button>
+                    <button className="action-btn delete-btn" onClick={() => setShowDeleteConfirm(true)}>Delete</button>
                 </div>
             </div>
         );
@@ -286,6 +306,20 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                         <div className="modal-actions">
                             <button className="secondary" onClick={() => setShowCreate(false)}>Cancel</button>
                             <button onClick={handleCreateAccount}>Save</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && selectedAccount && (
+                <div className="modal-overlay">
+                    <div className="modal-content" style={{ maxWidth: '400px' }}>
+                        <h3>Delete Account?</h3>
+                        <p>Are you sure you want to delete <strong>{selectedAccount.name}</strong>? This action cannot be undone.</p>
+                        <div className="modal-actions">
+                            <button className="secondary" onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+                            <button className="delete-btn" style={{ backgroundColor: '#d93025', color: 'white', border: 'none' }} onClick={handleDeleteAccount}>Delete</button>
                         </div>
                     </div>
                 </div>
