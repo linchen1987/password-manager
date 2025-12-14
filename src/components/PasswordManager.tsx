@@ -67,7 +67,9 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
     const [showCreate, setShowCreate] = useState(false);
     const [newName, setNewName] = useState("");
     const [newPassword, setNewPassword] = useState("");
+    const [showNewPassword, setShowNewPassword] = useState(true); // Default to visible
     const [masterPassword, setMasterPassword] = useState("");
+    const [confirmMasterPassword, setConfirmMasterPassword] = useState("");
 
     // Unlock Password State
     const [unlockMasterPassword, setUnlockMasterPassword] = useState("");
@@ -223,7 +225,9 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         setEditingAccount(selectedAccount);
         setNewName(selectedAccount.name);
         setNewPassword(""); // Reset password field, if they want to change it they can
+        setShowNewPassword(true); // Default to visible
         setMasterPassword("");
+        setConfirmMasterPassword("");
         setShowCreate(true);
     };
 
@@ -231,7 +235,9 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         setEditingAccount(null);
         setNewName("");
         setNewPassword("");
+        setShowNewPassword(true); // Default to visible
         setMasterPassword("");
+        setConfirmMasterPassword("");
         setShowCreate(true);
     };
 
@@ -285,6 +291,10 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                 setNotification({ msg: "Master password is required to encrypt the new password", type: "error" });
                 return;
             }
+            if (masterPassword !== confirmMasterPassword) {
+                setNotification({ msg: "Master passwords do not match", type: "error" });
+                return;
+            }
             try {
                 encrypted = await invoke<string>("encrypt_message", {
                     message: newPassword,
@@ -308,6 +318,11 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
             // Also update selectedAccount if we are actively viewing it
             if (selectedAccount && selectedAccount.name === editingAccount.name) {
                 setSelectedAccount(newAccount);
+                // Reset unlock state to force re-entry of password
+                setDecryptedPassword("");
+                setShowPassword(false);
+                setUnlockMasterPassword("");
+                setUnlockError("");
             }
         } else {
             updatedAccounts = [...accounts, newAccount];
@@ -319,6 +334,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
             setNewName("");
             setNewPassword("");
             setMasterPassword("");
+            setConfirmMasterPassword("");
             setEditingAccount(null);
         }
     };
@@ -520,30 +536,60 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                 spellCheck="false"
                                 name="account_name_field_no_autofill" // Random name to avoid history
                             />
-                            <input
-                                type="password"
-                                placeholder={editingAccount ? "New Password (leave empty to keep current)" : "Password (optional)"}
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                autoComplete="new-password"
-                                autoCorrect="off"
-                                autoCapitalize="off"
-                                spellCheck="false"
-                                name="new_password_field_no_autofill"
-                            />
-                            <div className="divider"></div>
-                            {(newPassword || !editingAccount) && (
+                            <div className="password-input-group" style={{ position: 'relative' }}>
                                 <input
-                                    type="password"
-                                    placeholder="Unlock Password (optional)"
-                                    value={masterPassword}
-                                    onChange={(e) => setMasterPassword(e.target.value)}
-                                    autoComplete="off"
+                                    type={showNewPassword ? "text" : "password"}
+                                    placeholder={editingAccount ? "New Password (leave empty to keep current)" : "Password (optional)"}
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    autoComplete="new-password"
                                     autoCorrect="off"
                                     autoCapitalize="off"
                                     spellCheck="false"
-                                    name="master_password_field_no_autofill"
+                                    name="new_password_field_no_autofill"
+                                    style={{ paddingRight: '2.5rem' }}
                                 />
+                                <button
+                                    className="icon-btn"
+                                    onClick={() => setShowNewPassword(!showNewPassword)}
+                                    style={{ position: 'absolute', right: '0.25rem', top: '50%', transform: 'translateY(-50%)', padding: '0.25rem' }}
+                                    title={showNewPassword ? "Hide Password" : "Show Password"}
+                                >
+                                    {showNewPassword ? (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" /></svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
+                                    )}
+                                </button>
+                            </div>
+                            <div className="divider"></div>
+                            {(newPassword || !editingAccount) && (
+                                <>
+                                    <input
+                                        type="password"
+                                        placeholder="Unlock Password (optional)"
+                                        value={masterPassword}
+                                        onChange={(e) => setMasterPassword(e.target.value)}
+                                        autoComplete="off"
+                                        autoCorrect="off"
+                                        autoCapitalize="off"
+                                        spellCheck="false"
+                                        name="master_password_field_no_autofill"
+                                    />
+                                    {masterPassword && (
+                                        <input
+                                            type="password"
+                                            placeholder="Confirm Unlock Password"
+                                            value={confirmMasterPassword}
+                                            onChange={(e) => setConfirmMasterPassword(e.target.value)}
+                                            autoComplete="off"
+                                            autoCorrect="off"
+                                            autoCapitalize="off"
+                                            spellCheck="false"
+                                            name="confirm_master_password_field"
+                                        />
+                                    )}
+                                </>
                             )}
                         </div>
                         <div className="modal-actions">
@@ -551,7 +597,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                             <button
                                 className="primary-btn"
                                 onClick={handleSaveAccount}
-                                disabled={!newName.trim() || (!!newPassword && !masterPassword)}
+                                disabled={!newName.trim() || (!!newPassword && (!masterPassword || masterPassword !== confirmMasterPassword))}
                             >
                                 Save
                             </button>
