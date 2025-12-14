@@ -380,6 +380,11 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                         placeholder="Search passwords"
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck="false"
+                        name="search_passwords_field_no_autofill"
                     />
                     {searchTerm && (
                         <button className="icon-btn clear-btn" onClick={() => setSearchTerm("")} style={{ minWidth: 'auto', padding: '2px' }}>
@@ -535,6 +540,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                 autoCapitalize="off"
                                 spellCheck="false"
                                 name="account_name_field_no_autofill" // Random name to avoid history
+                                onKeyDown={(e) => e.key === "Enter" && handleSaveAccount()}
                             />
                             <div className="password-input-group" style={{ position: 'relative' }}>
                                 <input
@@ -548,6 +554,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                     spellCheck="false"
                                     name="new_password_field_no_autofill"
                                     style={{ paddingRight: '2.5rem' }}
+                                    onKeyDown={(e) => e.key === "Enter" && handleSaveAccount()}
                                 />
                                 <button
                                     className="icon-btn"
@@ -575,6 +582,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                         autoCapitalize="off"
                                         spellCheck="false"
                                         name="master_password_field_no_autofill"
+                                        onKeyDown={(e) => e.key === "Enter" && handleSaveAccount()}
                                     />
                                     {masterPassword && (
                                         <input
@@ -587,6 +595,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                             autoCapitalize="off"
                                             spellCheck="false"
                                             name="confirm_master_password_field"
+                                            onKeyDown={(e) => e.key === "Enter" && handleSaveAccount()}
                                         />
                                     )}
                                 </>
