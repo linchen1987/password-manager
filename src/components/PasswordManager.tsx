@@ -382,7 +382,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                     {searchTerm ? <p>No results found.</p> : (
                         <>
                             <p>No passwords saved yet.</p>
-                            <button onClick={handleAddClick}>Add your first password</button>
+                            <button className="primary-btn" onClick={handleAddClick}>Add your first password</button>
                         </>
                     )}
                 </div>

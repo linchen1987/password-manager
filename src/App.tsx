@@ -53,7 +53,7 @@ function App() {
             </div>
             <div className="modal-actions">
               <button onClick={() => setShowSettings(false)} className="secondary">Cancel</button>
-              <button onClick={saveSettings}>Save</button>
+              <button onClick={saveSettings} className="primary-btn">Save</button>
             </div>
           </div>
         </div>
