@@ -349,14 +349,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
 
     // --- Render Helpers ---
 
-    const NotificationBanner = () => {
-        if (!notification) return null;
-        return (
-            <div className={`notification-banner ${notification.type}`}>
-                {notification.msg}
-            </div>
-        );
-    };
+
 
     const renderList = () => (
         <div className="pm-list-container">
@@ -522,7 +515,11 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
 
     return (
         <div className="pm-wrapper">
-            <NotificationBanner />
+            {notification && (
+                <div className={`notification-banner ${notification.type}`}>
+                    {notification.msg}
+                </div>
+            )}
             {view === "list" ? renderList() : renderDetail()}
 
             {/* Create/Edit Account Modal - Global */}
