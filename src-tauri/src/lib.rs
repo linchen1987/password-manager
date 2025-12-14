@@ -13,6 +13,7 @@ use tauri::Manager;
 #[derive(Serialize, Deserialize, Debug)]
 struct AppSettings {
     storage_path: String,
+    theme: String,
 }
 
 impl Default for AppSettings {
@@ -24,6 +25,7 @@ impl Default for AppSettings {
 
         Self {
             storage_path: format!("{}/.link1987/password", home),
+            theme: "system".to_string(),
         }
     }
 }
