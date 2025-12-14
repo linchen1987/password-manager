@@ -1,7 +1,8 @@
 {
   "name": "link1987-password",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "license": "CC-BY-NC-4.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
