@@ -637,3 +637,111 @@ button.icon-btn:disabled {
   pointer-events: none;
   box-shadow: none;
 }
+/* --- Startup Gate (Apple Passwords style) --- */
+.gate-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-body);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+}
+
+.gate-card {
+  width: min(360px, calc(100vw - 3rem));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.gate-icon {
+  width: 76px;
+  height: 76px;
+  border-radius: 20px;
+  background: var(--primary);
+  color: var(--text-inverse);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 20px var(--shadow-color);
+  margin-bottom: 1.25rem;
+}
+
+.gate-title {
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.gate-subtitle {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin: 0.75rem 0 1.25rem;
+}
+
+.gate-input-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 1rem;
+}
+
+.gate-input-wrapper input {
+  padding: 0.75rem 1rem;
+  padding-right: 2.5rem;
+  text-align: center;
+}
+
+button.eye-toggle-btn {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  box-sizing: border-box;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+/* Force icon geometry regardless of svg attributes */
+button.eye-toggle-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.gate-unlock-btn {
+  width: 100%;
+  padding: 0.75rem 1.2rem;
+  font-size: 1rem;
+}
+
+.gate-skip-btn {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.4rem 1rem;
+  margin-top: 0.25rem;
+}
+
+.gate-skip-btn:hover {
+  background: transparent;
+  border: none;
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+.gate-hint {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-top: 1.5rem;
+  line-height: 1.4;
+}

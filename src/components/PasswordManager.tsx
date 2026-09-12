@@ -1,5 +1,19 @@
 import { useState, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getSessionPassword, clearSessionPassword, hasSessionPassword } from "../lib/sessionPassword";
+import {
+    ArrowLeft,
+    ChevronRight,
+    CirclePlus,
+    Copy,
+    Eye,
+    EyeOff,
+    Lock,
+    LockOpen,
+    Search,
+    Settings,
+    X,
+} from "lucide-react";
 import {
     DndContext,
     closestCenter,
@@ -26,6 +40,9 @@ interface Account {
 interface PasswordManagerProps {
     settingsVersion?: number;
     onOpenSettings: () => void;
+    sessionPasswordActive?: boolean;
+    onOpenGate?: () => void;
+    onSessionPasswordChange?: () => void;
 }
 
 // Sortable Item Component
@@ -54,7 +71,7 @@ function SortableItem({ id, children, className, onClick, style }: { id: string,
     );
 }
 
-export default function PasswordManager({ settingsVersion = 0, onOpenSettings }: PasswordManagerProps) {
+export default function PasswordManager({ settingsVersion = 0, onOpenSettings, sessionPasswordActive = false, onOpenGate, onSessionPasswordChange }: PasswordManagerProps) {
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -71,7 +88,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
     const [masterPassword, setMasterPassword] = useState("");
     const [confirmMasterPassword, setConfirmMasterPassword] = useState("");
 
-    // Unlock Password State
+    // Master Password State (decrypt-on-view)
     const [unlockMasterPassword, setUnlockMasterPassword] = useState("");
     const [decryptedPassword, setDecryptedPassword] = useState("");
     const [unlockError, setUnlockError] = useState("");
@@ -185,8 +202,8 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
             if (decryptedPassword) {
                 setShowPassword(true);
             } else {
-                // Open modal to unlock
-                setUnlockMasterPassword("");
+                // Open modal to unlock — prefill with session password if available
+                setUnlockMasterPassword(getSessionPassword() ?? "");
                 setUnlockError("");
                 setShowUnlock(true);
             }
@@ -226,8 +243,10 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         setNewName(selectedAccount.name);
         setNewPassword(""); // Reset password field, if they want to change it they can
         setShowNewPassword(true); // Default to visible
-        setMasterPassword("");
-        setConfirmMasterPassword("");
+        // Auto-fill master password from session memory (if set)
+        const sessionPw = getSessionPassword();
+        setMasterPassword(sessionPw ?? "");
+        setConfirmMasterPassword(sessionPw ?? "");
         setShowCreate(true);
     };
 
@@ -236,9 +255,23 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
         setNewName("");
         setNewPassword("");
         setShowNewPassword(true); // Default to visible
-        setMasterPassword("");
-        setConfirmMasterPassword("");
+        // Auto-fill master password from session memory (if set)
+        const sessionPw = getSessionPassword();
+        setMasterPassword(sessionPw ?? "");
+        setConfirmMasterPassword(sessionPw ?? "");
         setShowCreate(true);
+    };
+
+    const handleSessionLockClick = () => {
+        if (hasSessionPassword()) {
+            // Manual lock: drop the session password from memory
+            clearSessionPassword();
+            onSessionPasswordChange?.();
+            setNotification({ msg: "Session password cleared from memory", type: "success" });
+        } else {
+            // No session password yet — open the gate to set one
+            onOpenGate?.();
+        }
     };
 
     const sensors = useSensors(
@@ -356,18 +389,29 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
             <div className="pm-header">
                 <h2>Passwords</h2>
                 <div className="header-actions" style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                        className={`icon-btn ${sessionPasswordActive ? 'text-primary' : ''}`}
+                        onClick={handleSessionLockClick}
+                        title={sessionPasswordActive ? "Session password active — click to clear from memory" : "Set session password for autofill"}
+                    >
+                        {sessionPasswordActive ? (
+                            <Lock size={24} />
+                        ) : (
+                            <LockOpen size={24} />
+                        )}
+                    </button>
                     <button className="icon-btn text-primary" onClick={handleAddClick} title="Add Password">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="11"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        <CirclePlus size={24} />
                     </button>
                     <button className="icon-btn" onClick={onOpenSettings} title="Settings">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <Settings size={24} />
                     </button>
                 </div>
             </div>
 
             <div className="pm-search">
                 <div className="search-input-wrapper">
-                    <svg className="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <Search size={20} className="search-icon" />
                     <input
                         type="text"
                         placeholder="Search passwords"
@@ -381,7 +425,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                     />
                     {searchTerm && (
                         <button className="icon-btn clear-btn" onClick={() => setSearchTerm("")} style={{ minWidth: 'auto', padding: '2px' }}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            <X size={16} />
                         </button>
                     )}
                 </div>
@@ -425,7 +469,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                         </div>
                                         <span className="account-name">{acc.name}</span>
                                         <div className="account-arrow">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                                            <ChevronRight size={20} />
                                         </div>
                                     </SortableItem>
                                 ))}
@@ -445,7 +489,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                 </div>
                                 <span className="account-name">{acc.name}</span>
                                 <div className="account-arrow">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6" /></svg>
+                                    <ChevronRight size={20} />
                                 </div>
                             </div>
                         ))
@@ -461,7 +505,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
             <div className="pm-detail-container">
                 <div className="detail-header">
                     <button className="icon-btn back-btn" onClick={handleBack} title="Back">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5" /><path d="M12 19l-7-7 7-7" /></svg>
+                        <ArrowLeft size={24} />
                     </button>
                     <h2>{selectedAccount.name}</h2>
                 </div>
@@ -486,15 +530,15 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                     {showPassword ? (
                                         <>
                                             <button className="icon-btn" onClick={handleCopyPassword} title="Copy Password">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2" /><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" /></svg>
+                                                <Copy size={24} />
                                             </button>
                                             <button className="icon-btn reveal-btn" onClick={handleTogglePassword} title="Hide Password">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></svg>
+                                                <EyeOff size={24} />
                                             </button>
                                         </>
                                     ) : (
                                         <button className="icon-btn reveal-btn" onClick={handleTogglePassword} title="Show Password">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></svg>
+                                            <Eye size={24} />
                                         </button>
                                     )}
                                 </>
@@ -554,24 +598,19 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                     onKeyDown={(e) => e.key === "Enter" && handleSaveAccount()}
                                 />
                                 <button
-                                    className="icon-btn"
+                                    className="icon-btn eye-toggle-btn"
                                     onClick={() => setShowNewPassword(!showNewPassword)}
-                                    style={{ position: 'absolute', right: '0.25rem', top: '50%', transform: 'translateY(-50%)', padding: '0.25rem' }}
                                     title={showNewPassword ? "Hide Password" : "Show Password"}
                                 >
-                                    {showNewPassword ? (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24M1 1l22 22" /></svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                                    )}
+                                    {showNewPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                 </button>
                             </div>
                             <div className="divider"></div>
-                            {(newPassword || !editingAccount) && (
+                            {newPassword && (
                                 <>
                                     <input
                                         type="password"
-                                        placeholder="Unlock Password (optional)"
+                                        placeholder="Master Password (optional)"
                                         value={masterPassword}
                                         onChange={(e) => setMasterPassword(e.target.value)}
                                         autoComplete="off"
@@ -584,7 +623,7 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
                                     {masterPassword && (
                                         <input
                                             type="password"
-                                            placeholder="Confirm Unlock Password"
+                                            placeholder="Confirm Master Password"
                                             value={confirmMasterPassword}
                                             onChange={(e) => setConfirmMasterPassword(e.target.value)}
                                             autoComplete="off"
@@ -616,11 +655,11 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings }:
             {showUnlock && (
                 <div className="modal-overlay">
                     <div className="modal-content">
-                        <h3>Unlock Password</h3>
+                        <h3>Master Password</h3>
                         <div className="form-group">
                             <input
                                 type="password"
-                                placeholder="Enter Unlock Password"
+                                placeholder="Enter Master Password"
                                 value={unlockMasterPassword}
                                 onChange={(e) => setUnlockMasterPassword(e.target.value)}
                                 onKeyDown={(e) => {

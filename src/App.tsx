@@ -3,6 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 // import CryptoDemo from "./components/CryptoDemo"; // Preserved but unused
 import PasswordManager from "./components/PasswordManager";
+import StartupGate from "./components/StartupGate";
+import { Save, X } from "lucide-react";
+import { setSessionPassword, hasSessionPassword } from "./lib/sessionPassword";
 
 function App() {
   // --- Settings Logic ---
@@ -11,6 +14,10 @@ function App() {
   const [savedStoragePath, setSavedStoragePath] = useState(""); // Track persisted path
   const [theme, setTheme] = useState("system"); // system, light, dark
   const [settingsVersion, setSettingsVersion] = useState(0);
+
+  // --- Session Password Logic (memory only, never persisted) ---
+  const [showGate, setShowGate] = useState(true); // Ask once on app entry
+  const [sessionPasswordActive, setSessionPasswordActive] = useState(false);
 
   const loadSettings = async () => {
     try {
@@ -51,6 +58,18 @@ function App() {
     loadSettings();
   });
 
+  // --- Session Password Handlers ---
+  const handleGateUnlock = (pw: string) => {
+    // Keep the password in memory only (see lib/sessionPassword.ts)
+    setSessionPassword(pw);
+    setSessionPasswordActive(true);
+    setShowGate(false);
+  };
+
+  const handleGateSkip = () => {
+    setShowGate(false);
+  };
+
   // Apply theme
   useEffect(() => {
     if (typeof document !== 'undefined') {
@@ -74,7 +93,7 @@ function App() {
             <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <h2 style={{ margin: 0 }}>Settings</h2>
               <button className="icon-btn" onClick={() => setShowSettings(false)} title="Close">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                <X size={24} />
               </button>
             </div>
 
@@ -95,7 +114,7 @@ function App() {
                   title="Save Path"
                   disabled={storagePath === savedStoragePath}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                  <Save size={20} />
                 </button>
               </div>
             </div>
@@ -120,8 +139,19 @@ function App() {
         <PasswordManager
           settingsVersion={settingsVersion}
           onOpenSettings={() => { setShowSettings(true); loadSettings(); }}
+          sessionPasswordActive={sessionPasswordActive}
+          onOpenGate={() => { setShowGate(true); }}
+          onSessionPasswordChange={() => { setSessionPasswordActive(hasSessionPassword()); }}
         />
       </div>
+
+      {/* Startup Gate — enter password once for autofill, or skip */}
+      {showGate && (
+        <StartupGate
+          onUnlock={handleGateUnlock}
+          onSkip={handleGateSkip}
+        />
+      )}
     </main>
   );
 }
