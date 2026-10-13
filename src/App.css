@@ -406,6 +406,12 @@ select:focus {
 }
 
 /* --- Detail View --- */
+.pm-detail-container {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .detail-header {
   display: flex;
   align-items: center;
@@ -460,6 +466,7 @@ select:focus {
 
 .password-text {
   flex: 1;
+  min-width: 0;
   font-family: monospace;
   letter-spacing: 1px;
   word-break: break-all;
