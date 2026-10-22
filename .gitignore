@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local account data (real or migrated) — never commit
+accounts.csv
+accounts.json
+accounts.csv.migrated
+
