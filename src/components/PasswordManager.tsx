@@ -41,6 +41,8 @@ interface PasswordManagerProps {
     settingsVersion?: number;
     onOpenSettings: () => void;
     sessionPasswordActive?: boolean;
+    /** Increments on idle auto-lock; reset sensitive UI when it changes. */
+    lockSignal?: number;
     onOpenGate?: () => void;
     onSessionPasswordChange?: () => void;
 }
@@ -71,7 +73,7 @@ function SortableItem({ id, children, className, onClick, style }: { id: string,
     );
 }
 
-export default function PasswordManager({ settingsVersion = 0, onOpenSettings, sessionPasswordActive = false, onOpenGate, onSessionPasswordChange }: PasswordManagerProps) {
+export default function PasswordManager({ settingsVersion = 0, onOpenSettings, sessionPasswordActive = false, onOpenGate, onSessionPasswordChange, lockSignal = 0 }: PasswordManagerProps) {
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -108,6 +110,26 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings, s
 
     // Edit State
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+
+    // Idle auto-lock: wipe any plaintext / sensitive state and go back to
+    // the list view so nothing stays visible on an unattended screen.
+    useEffect(() => {
+        if (lockSignal === 0) return; // skip initial mount
+        setDecryptedPassword("");
+        setShowPassword(false);
+        setUnlockMasterPassword("");
+        setUnlockError("");
+        setShowUnlock(false);
+        setShowCreate(false);
+        setShowDeleteConfirm(false);
+        setEditingAccount(null);
+        setNewPassword("");
+        setMasterPassword("");
+        setConfirmMasterPassword("");
+        setSelectedAccount(null);
+        setView("list");
+        setSearchTerm("");
+    }, [lockSignal]);
 
     useEffect(() => {
         loadAccounts();

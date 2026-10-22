@@ -5,7 +5,8 @@ import "./App.css";
 import PasswordManager from "./components/PasswordManager";
 import StartupGate from "./components/StartupGate";
 import { Save, X } from "lucide-react";
-import { setSessionPassword, hasSessionPassword } from "./lib/sessionPassword";
+import { setSessionPassword, hasSessionPassword, clearSessionPassword } from "./lib/sessionPassword";
+import { useIdleAutoLock } from "./lib/useIdleAutoLock";
 
 function App() {
   // --- Settings Logic ---
@@ -18,6 +19,27 @@ function App() {
   // --- Session Password Logic (memory only, never persisted) ---
   const [showGate, setShowGate] = useState(true); // Ask once on app entry
   const [sessionPasswordActive, setSessionPasswordActive] = useState(false);
+
+  // --- Idle Auto-Lock ---
+  // Incremented each time the idle timer fires; PasswordManager watches it
+  // to reset its UI (hide revealed passwords, close modals, back to list).
+  const [lockSignal, setLockSignal] = useState(0);
+
+  const handleIdleLock = () => {
+    const hadPassword = hasSessionPassword();
+    if (hadPassword) {
+      clearSessionPassword();
+      setSessionPasswordActive(false);
+    }
+    // Always reset the UI home so no plaintext stays on screen
+    setLockSignal(v => v + 1);
+    // Re-prompt only if a session password was active before the timeout
+    if (hadPassword) {
+      setShowGate(true);
+    }
+  };
+
+  useIdleAutoLock(handleIdleLock);
 
   const loadSettings = async () => {
     try {
@@ -140,6 +162,7 @@ function App() {
           settingsVersion={settingsVersion}
           onOpenSettings={() => { setShowSettings(true); loadSettings(); }}
           sessionPasswordActive={sessionPasswordActive}
+          lockSignal={lockSignal}
           onOpenGate={() => { setShowGate(true); }}
           onSessionPasswordChange={() => { setSessionPasswordActive(hasSessionPassword()); }}
         />
