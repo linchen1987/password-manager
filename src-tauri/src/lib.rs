@@ -91,68 +91,24 @@ impl AccountStore {
     }
 }
 
-/// Parse a legacy `accounts.csv` line: `name,encrypted...`.
-/// Mirrors the old frontend logic (join remaining parts back with commas).
-fn parse_csv_accounts(content: &str) -> Vec<Account> {
-    content
-        .lines()
-        .filter_map(|line| {
-            let line = line.trim();
-            if line.is_empty() {
-                return None;
-            }
-            let mut parts = line.splitn(2, ',');
-            let name = parts.next().unwrap_or("").trim().to_string();
-            let encrypted = parts.next().unwrap_or("").trim().to_string();
-            if name.is_empty() {
-                None
-            } else {
-                Some(Account { name, encrypted_password: encrypted })
-            }
-        })
-        .collect()
-}
-
 fn accounts_json_path(storage_path: &PathBuf) -> PathBuf {
     storage_path.join("accounts.json")
 }
 
-fn accounts_csv_path(storage_path: &PathBuf) -> PathBuf {
-    storage_path.join("accounts.csv")
-}
-
-/// Load the account store; if only the legacy CSV exists, migrate it to
-/// accounts.json and rename the old file to accounts.csv.migrated.
+/// Load the account store from accounts.json (absent file = empty store).
+/// Historical accounts.csv data is migrated by scripts/migrate-csv-to-json.mjs.
 fn load_account_store(app_handle: &tauri::AppHandle) -> Result<AccountStore, String> {
     let storage_path = get_storage_path_internal(app_handle)?;
     let json_path = accounts_json_path(&storage_path);
 
-    if json_path.exists() {
-        let content = fs::read_to_string(&json_path).map_err(|e| e.to_string())?;
-        let store: AccountStore = serde_json::from_str(&content).map_err(|e| {
-            format!("Failed to parse {}: {}", json_path.display(), e)
-        })?;
-        return Ok(store);
+    if !json_path.exists() {
+        return Ok(AccountStore::new(Vec::new()));
     }
 
-    // Legacy migration
-    let csv_path = accounts_csv_path(&storage_path);
-    if csv_path.exists() {
-        let content = fs::read_to_string(&csv_path).map_err(|e| e.to_string())?;
-        let store = AccountStore::new(parse_csv_accounts(&content));
-        write_account_store(&storage_path, &store)?;
-        let migrated = csv_path.with_extension("csv.migrated");
-        fs::rename(&csv_path, &migrated).map_err(|e| {
-            format!(
-                "Migrated to {} but failed to rename old CSV: {}",
-                json_path.display(),
-                e
-            )
-        })?;
-        return Ok(store);
-    }
-
-    Ok(AccountStore::new(Vec::new()))
+    let content = fs::read_to_string(&json_path).map_err(|e| e.to_string())?;
+    let store: AccountStore = serde_json::from_str(&content)
+        .map_err(|e| format!("Failed to parse {}: {}", json_path.display(), e))?;
+    Ok(store)
 }
 
 /// Persist the store atomically: write to a temp file, then rename.
@@ -184,16 +140,6 @@ fn write_accounts(app_handle: tauri::AppHandle, accounts: Vec<Account>) -> Resul
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parse_csv_handles_names_and_blank_lines() {
-        let csv = "ccc,aa_bb_cc\n\n2,dd_ee_ff\n";
-        let accounts = parse_csv_accounts(csv);
-        assert_eq!(accounts.len(), 2);
-        assert_eq!(accounts[0].name, "ccc");
-        assert_eq!(accounts[0].encrypted_password, "aa_bb_cc");
-        assert_eq!(accounts[1].name, "2");
-    }
 
     #[test]
     fn store_serializes_with_version() {
