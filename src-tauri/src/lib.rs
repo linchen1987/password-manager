@@ -71,30 +71,140 @@ fn get_storage_path_internal(app_handle: &tauri::AppHandle) -> Result<PathBuf, S
     Ok(PathBuf::from(settings.storage_path))
 }
 
-#[tauri::command]
-fn read_accounts_file(app_handle: tauri::AppHandle) -> Result<String, String> {
-    let storage_path = get_storage_path_internal(&app_handle)?;
-    let file_path = storage_path.join("accounts.csv");
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct Account {
+    name: String,
+    encrypted_password: String,
+}
 
-    if !file_path.exists() {
-        return Ok(String::new()); // Return empty string if file doesn't exist
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct AccountStore {
+    version: u32,
+    accounts: Vec<Account>,
+}
+
+impl AccountStore {
+    fn new(accounts: Vec<Account>) -> Self {
+        Self { version: 1, accounts }
+    }
+}
+
+/// Parse a legacy `accounts.csv` line: `name,encrypted...`.
+/// Mirrors the old frontend logic (join remaining parts back with commas).
+fn parse_csv_accounts(content: &str) -> Vec<Account> {
+    content
+        .lines()
+        .filter_map(|line| {
+            let line = line.trim();
+            if line.is_empty() {
+                return None;
+            }
+            let mut parts = line.splitn(2, ',');
+            let name = parts.next().unwrap_or("").trim().to_string();
+            let encrypted = parts.next().unwrap_or("").trim().to_string();
+            if name.is_empty() {
+                None
+            } else {
+                Some(Account { name, encrypted_password: encrypted })
+            }
+        })
+        .collect()
+}
+
+fn accounts_json_path(storage_path: &PathBuf) -> PathBuf {
+    storage_path.join("accounts.json")
+}
+
+fn accounts_csv_path(storage_path: &PathBuf) -> PathBuf {
+    storage_path.join("accounts.csv")
+}
+
+/// Load the account store; if only the legacy CSV exists, migrate it to
+/// accounts.json and rename the old file to accounts.csv.migrated.
+fn load_account_store(app_handle: &tauri::AppHandle) -> Result<AccountStore, String> {
+    let storage_path = get_storage_path_internal(app_handle)?;
+    let json_path = accounts_json_path(&storage_path);
+
+    if json_path.exists() {
+        let content = fs::read_to_string(&json_path).map_err(|e| e.to_string())?;
+        let store: AccountStore = serde_json::from_str(&content).map_err(|e| {
+            format!("Failed to parse {}: {}", json_path.display(), e)
+        })?;
+        return Ok(store);
     }
 
-    fs::read_to_string(file_path).map_err(|e| e.to_string())
+    // Legacy migration
+    let csv_path = accounts_csv_path(&storage_path);
+    if csv_path.exists() {
+        let content = fs::read_to_string(&csv_path).map_err(|e| e.to_string())?;
+        let store = AccountStore::new(parse_csv_accounts(&content));
+        write_account_store(&storage_path, &store)?;
+        let migrated = csv_path.with_extension("csv.migrated");
+        fs::rename(&csv_path, &migrated).map_err(|e| {
+            format!(
+                "Migrated to {} but failed to rename old CSV: {}",
+                json_path.display(),
+                e
+            )
+        })?;
+        return Ok(store);
+    }
+
+    Ok(AccountStore::new(Vec::new()))
+}
+
+/// Persist the store atomically: write to a temp file, then rename.
+fn write_account_store(storage_path: &PathBuf, store: &AccountStore) -> Result<(), String> {
+    if !storage_path.exists() {
+        fs::create_dir_all(storage_path)
+            .map_err(|e| format!("Failed to create storage dir: {}", e))?;
+    }
+    let json_path = accounts_json_path(storage_path);
+    let tmp_path = storage_path.join("accounts.json.tmp");
+    let content =
+        serde_json::to_string_pretty(store).map_err(|e| format!("Failed to serialize: {}", e))?;
+    fs::write(&tmp_path, content).map_err(|e| e.to_string())?;
+    fs::rename(&tmp_path, &json_path).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
-fn write_accounts_file(app_handle: tauri::AppHandle, content: String) -> Result<(), String> {
-    let storage_path = get_storage_path_internal(&app_handle)?;
+fn read_accounts(app_handle: tauri::AppHandle) -> Result<Vec<Account>, String> {
+    Ok(load_account_store(&app_handle)?.accounts)
+}
 
-    // Ensure directory exists
-    if !storage_path.exists() {
-        fs::create_dir_all(&storage_path)
-            .map_err(|e| format!("Failed to create storage dir: {}", e))?;
+#[tauri::command]
+fn write_accounts(app_handle: tauri::AppHandle, accounts: Vec<Account>) -> Result<(), String> {
+    let storage_path = get_storage_path_internal(&app_handle)?;
+    write_account_store(&storage_path, &AccountStore::new(accounts))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_csv_handles_names_and_blank_lines() {
+        let csv = "ccc,aa_bb_cc\n\n2,dd_ee_ff\n";
+        let accounts = parse_csv_accounts(csv);
+        assert_eq!(accounts.len(), 2);
+        assert_eq!(accounts[0].name, "ccc");
+        assert_eq!(accounts[0].encrypted_password, "aa_bb_cc");
+        assert_eq!(accounts[1].name, "2");
     }
 
-    let file_path = storage_path.join("accounts.csv");
-    fs::write(file_path, content).map_err(|e| e.to_string())
+    #[test]
+    fn store_serializes_with_version() {
+        let store = AccountStore::new(vec![Account {
+            name: "test".into(),
+            encrypted_password: "a_b_c".into(),
+        }]);
+        let json = serde_json::to_string(&store).unwrap();
+        assert!(json.contains(r#""version":1"#));
+        assert!(json.contains(r#""encryptedPassword":"a_b_c""#));
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -107,8 +217,8 @@ pub fn run() {
             crypto::decrypt_message,
             get_settings,
             save_settings,
-            read_accounts_file,
-            write_accounts_file
+            read_accounts,
+            write_accounts
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -147,20 +147,8 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings, s
     const loadAccounts = async () => {
         setLoading(true);
         try {
-            const content = await invoke<string>("read_accounts_file");
-            const loadedAccounts: Account[] = [];
-            if (content.trim()) {
-                const lines = content.split("\n");
-                for (const line of lines) {
-                    const parts = line.split(",");
-                    if (parts.length >= 2) {
-                        loadedAccounts.push({
-                            name: parts[0].trim(),
-                            encryptedPassword: parts.slice(1).join(",").trim(),
-                        });
-                    }
-                }
-            }
+            // Rust returns a typed account list (accounts.json)
+            const loadedAccounts = await invoke<Account[]>("read_accounts");
             setAccounts(loadedAccounts);
         } catch (err) {
             setError("Failed to load accounts: " + String(err));
@@ -170,13 +158,8 @@ export default function PasswordManager({ settingsVersion = 0, onOpenSettings, s
     };
 
     const saveAccounts = async (updatedAccounts: Account[]) => {
-        // Convert to CSV
-        const csvContent = updatedAccounts
-            .map((acc) => `${acc.name},${acc.encryptedPassword}`)
-            .join("\n");
-
         try {
-            await invoke("write_accounts_file", { content: csvContent });
+            await invoke("write_accounts", { accounts: updatedAccounts });
             setAccounts(updatedAccounts);
             return true;
         } catch (err) {
